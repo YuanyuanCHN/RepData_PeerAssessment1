@@ -1,0 +1,176 @@
+Analysis of personal activity monitoring device data
+========================================================
+## Introduction
+
+It is now possible to collect a large amount of data about personal
+movement using activity monitoring devices such as a
+[Fitbit](http://www.fitbit.com), [Nike
+Fuelband](http://www.nike.com/us/en_us/c/nikeplus-fuelband), or
+[Jawbone Up](https://jawbone.com/up). These type of devices are part of
+the "quantified self" movement -- a group of enthusiasts who take
+measurements about themselves regularly to improve their health, to
+find patterns in their behavior, or because they are tech geeks. But
+these data remain under-utilized both because the raw data are hard to
+obtain and there is a lack of statistical methods and software for
+processing and interpreting the data.
+
+This assignment makes use of data from a personal activity monitoring
+device. This device collects data at 5 minute intervals through out the
+day. The data consists of two months of data from an anonymous
+individual collected during the months of October and November, 2012
+and include the number of steps taken in 5 minute intervals each day.
+
+## Data
+
+The data for this assignment can be downloaded from the course web
+site:
+
+* Dataset: [Activity monitoring data](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip) [52K]
+
+The variables included in this dataset are:
+
+* **steps**: Number of steps taking in a 5-minute interval (missing
+    values are coded as `NA`)
+
+* **date**: The date on which the measurement was taken in YYYY-MM-DD
+    format
+
+* **interval**: Identifier for the 5-minute interval in which
+    measurement was taken
+
+
+
+
+The dataset is stored in a comma-separated-value (CSV) file and there
+are a total of 17,568 observations in this
+dataset.
+
+
+## Assignment
+
+### Loading and preprocessing the data
+
+In the first step, we load the data into R environment from the CSV file in the working directory.
+```{r}
+# Read Activity monitoring data ('amd') data set from the working directory
+amd <- read.csv("activity.csv", stringsAsFactors = FALSE)
+head(amd)
+```
+The data is in an appropriate form for further analysis. Thus, there is no need for further transformation. 
+
+### What is mean total number of steps taken per day?
+
+We are interested in what is mean total number of steps taken per day. We begin with plotting a histogram of the total number of steps taken each day. Please note that for this part of the analysis, we ignore the missing values in the dataset.
+
+* The histogram of the total number of steps of each day.
+```{r, message=FALSE}
+# Group observations by date and sum steps taken per each day
+library(dplyr)
+total.steps.per.day <- amd %.% group_by(date) %.% summarise(total = sum(steps, 
+    na.rm = T))
+
+library(ggplot2)
+# Set default font size for all ggplot2 plots
+theme_set(theme_gray(base_size = 14))
+
+# The histogram display a general distribution of numbers which are total
+# steps for each day in our data.
+ggplot(total.steps.per.day, aes(x = total)) + geom_histogram(fill = "yellow", 
+    colour = "black")  + labs(title = "Histogram of total number of steps \n taken for each day") + 
+    labs(x = "", y = "")
+```
+
+* Calculate and report the mean and median total number of steps taken per day
+```{r}
+# Define total mean and total median of steps sums for each day
+total.mean <- mean(total.steps.per.day$total)
+print(total.mean)
+total.median <- median(total.steps.per.day$total)
+print(total.median)
+```
+
+### What is the average daily activity pattern?
+
+* We investigate the daily activity pattern by observing the average number of steps taken for subsequent day 5-minute intervals, averaged across all days. This pattern is presented on the plot below.
+
+```{r,message=FALSE}
+# Create data frame with number of steps taken, averaged across all days
+avg.intvl.steps <- amd %.% group_by(interval) %.% summarise(avg.intvl = mean(steps, 
+    na.rm = T))
+
+# Find out which 5-minute interval contains the maximum number of steps
+max.num.of.steps.interv.ind <- which(avg.intvl.steps$avg.intvl == max(avg.intvl.steps$avg.intvl))
+max.num.of.steps.interv <- avg.intvl.steps[max.num.of.steps.interv.ind, 1]
+
+qplot(interval, avg.intvl, data = avg.intvl.steps) + geom_line() + geom_vline(xintercept = max.num.of.steps.interv, 
+    color = "red", linetype = "dashed", size = 1) + labs(title = "Time series of the 5-minute interval and the average number of steps taken, \n averaged across all days") + 
+    labs(x = "5-minute interval signature", y = "number of steps ")
+```
+#### 5-minute interval with the maximum number of steps
+
+On the plot there is a red line representing the maximum of averaged number of steps per each 5-minute time interval. The maximum is found in the interwal with signature: 835.
+
+Signature 835 represents time of some early part of a day. It seems sensible as we realize that during early day hours people generaly tend to get up; they are supposed to be in a rush waking up and going to school / work etc., making plenty of meters / kilometers by foot.
+### Imputing mission values
+
+#### Total number of mission value in the dataset
+```{r}
+na.rows.num <- nrow(amd) - sum(complete.cases(amd))
+na.rows.num
+```
+
+#### A strategy for filling in all of the missing values in the dataset
+
+```{r,message=FALSE}
+# Create copy of a base data frame
+amd.na.imputed <- amd
+
+for (row.num in 1:nrow(amd.na.imputed)) {
+
+    if (is.na(amd.na.imputed[row.num, "steps"])) {
+
+        interval.sgn <- amd.na.imputed[row.num, "interval"]
+        interval.sgn.ind <- which(avg.intvl.steps[, "interval"] == interval.sgn)
+        interval.steps.mean <- avg.intvl.steps[interval.sgn.ind, "avg.intvl"]
+        amd.na.imputed[row.num, "steps"] <- interval.steps.mean
+        message(paste0("NA value in row num. ", row.num, " imputed!"))
+    }
+}
+```
+```{r}
+# Check if number of complete cases equals number of rows
+(nrow(amd.na.imputed) - sum(complete.cases(amd.na.imputed))) == 0
+```
+
+#### Dataset with imputed NA values - histogram of the total number of steps taken each day
+Now we can plot histogram of the total number of steps taken each day with imputed NA values
+```{r}
+total.steps.per.day.imputed <- amd.na.imputed %.% group_by(date) %.% summarise(total = sum(steps, 
+    na.rm = T))
+
+total.mean.imputed <- mean(total.steps.per.day.imputed$total)
+print(total.mean.imputed)
+
+total.median.imputed <- median(total.steps.per.day.imputed$total)
+print(total.median.imputed)
+
+
+# The histogram display a general distribution of numbers
+# which are total steps for each day in our data. 
+
+ggplot(total.steps.per.day.imputed, aes(x = total)) + geom_histogram(fill = "yellow", 
+    colour = "black") + geom_vline(xintercept = total.mean.imputed, color = "brown", 
+    linetype = "dashed", size = 1) + geom_vline(xintercept = total.median.imputed, 
+    color = "red", linetype = "dashed", size = 1) + labs(title = "Histogram of total number of steps taken for each day \n in the data set with imputed NA values") + 
+    labs(x = "", y = "")
+```
+
+#### Dataset with imputed NA values - the mean and median total number of steps taken per day
+
+We can observe that imputing NA values does have an inpact on total number of steps taken per day values:
+
+* both mean and median are higher than the same metrics taken from the raw data,
+* suprisingly, mean and median have exactly the same values this time; they both equal 1.0766 × 104 (this value is marked on the histogram with the use of a red vertical line).
+
+### Are there differences in activity patterns between weekdays and weekends?
+Sorry for no enough time to finish.
